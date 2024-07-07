@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"os"
 	"regexp"
@@ -19,6 +20,8 @@ import (
 // State describes the Asterisk channel state.  There are mapped
 // directly to the Asterisk enumerations.
 type State int
+
+const invalidResult = math.MinInt
 
 const (
 	// StateDown indicates the channel is down and available
@@ -223,7 +226,9 @@ func (a *AGI) Command(cmd ...string) (resp *Response) {
 			resString := ""
 			if resp.Error == nil {
 				resString += " Sta:" + strconv.Itoa(resp.Status)
-				resString += " Res:" + strconv.Itoa(resp.Result)
+				if resp.Result != invalidResult {
+					resString += " Res:" + strconv.Itoa(resp.Result)
+				}
 				if resp.ResultString != "" {
 					resString += " Str:" + resp.ResultString
 				}
@@ -274,7 +279,7 @@ func (a *AGI) Command(cmd ...string) (resp *Response) {
 		resp.ResultString = pieces[2]
 		resp.Result, err = strconv.Atoi(pieces[2])
 		if err != nil {
-			resp.Error = errors.Wrap(err, "failed to parse result-code as an integer")
+			resp.Result = invalidResult
 		}
 
 		// Value is the third (and optional) substring
@@ -495,7 +500,7 @@ func (a *AGI) Verbosef(format string, args ...interface{}) error {
 func (a *AGI) WaitForDigit(timeout time.Duration) (digit string, err error) {
 	resp := a.Command("WAIT FOR DIGIT", toMSec(timeout))
 	resp.ResultString = ""
-	if resp.Error == nil && strconv.IsPrint(rune(resp.Result)) {
+	if resp.Error == nil && resp.Result != invalidResult && strconv.IsPrint(rune(resp.Result)) {
 		resp.ResultString = fmt.Sprintf("%c", resp.Result)
 	}
 	return resp.Res()
